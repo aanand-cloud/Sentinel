@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Sentinel Wealth | Pro</title>
+    <style>
+        :root {
+            --bg: #05080a; /* Deep Obsidian */
+            --card: #0d1117;
+            --primary: #00d4ff; /* Electric Cyan */
+            --gold: #d4af37; /* Matte Gold */
+            --danger: #ff3366;
+            --text: #f0f6fc;
+            --border: #30363d;
+            --nav-h: 75px;
+        }
+        * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; overflow: hidden; height: 100vh; }
+        
+        .wrapper { display: flex; flex-direction: column; height: 100vh; }
+        #app { flex: 1; overflow-y: auto; padding: 25px; padding-bottom: 120px; -webkit-overflow-scrolling: touch; }
+
+        /* BRANDING & LOGO */
+        .logo-area { display: flex; align-items: center; gap: 10px; margin-bottom: 25px; }
+        .shield-icon { width: 30px; height: 35px; background: var(--gold); clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
+        .logo-text { font-size: 16px; font-weight: 900; letter-spacing: 3px; color: var(--text); text-transform: uppercase; }
+
+        /* DASHBOARD BANNER */
+        .banner { background: linear-gradient(145deg, #0d1117, #161b22); border: 1px solid var(--gold); border-radius: 28px; padding: 30px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .banner h1 { margin: 10px 0; font-size: 36px; font-weight: 900; color: var(--gold); }
+        .streak-pill { background: rgba(212, 175, 55, 0.1); color: var(--gold); padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; border: 1px solid var(--gold); }
+
+        /* SAFE TO SPEND WIDGET */
+        .sts-box { background: rgba(0, 212, 255, 0.05); border: 1px solid var(--primary); border-radius: 24px; padding: 20px; text-align: center; margin-bottom: 25px; }
+        .sts-val { font-size: 34px; font-weight: 900; color: var(--primary); margin: 5px 0; text-shadow: 0 0 15px rgba(0, 212, 255, 0.3); }
+
+        /* CARDS & INPUTS */
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        
+        input { 
+            width: 100%; background: #161b22 !important; color: #ffffff !important; 
+            border: 1px solid var(--border) !important; padding: 16px; border-radius: 14px; 
+            font-size: 16px !important; margin-bottom: 15px; outline: none;
+        }
+        input:focus { border-color: var(--gold) !important; }
+
+        .btn-gold { background: var(--gold); color: #000; border: none; padding: 16px; border-radius: 14px; font-weight: 900; width: 100%; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* BARS & NAV */
+        .quick-bar { background: var(--card); border-top: 1px solid var(--border); display: flex; padding: 12px; gap: 10px; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+        .quick-bar input { margin-bottom: 0; flex: 1; }
+        
+        .bottom-nav { height: var(--nav-h); background: #010409; display: flex; border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); }
+        .nav-item { flex: 1; border: none; background: none; color: #484f58; font-size: 10px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; text-transform: uppercase; }
+        .nav-item.active { color: var(--gold); }
+
+        /* MODAL */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.96); z-index: 10000; display: none; align-items: center; justify-content: center; padding: 25px; }
+        .modal-inner { background: var(--card); width: 100%; border-radius: 30px; padding: 30px; border: 1px solid var(--gold); }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <div id="app"></div>
+
+    <div class="quick-bar">
+        <input type="number" id="qAmt" placeholder="0.00" inputmode="decimal">
+        <input type="text" id="qDesc" placeholder="Spending Source">
+        <button onclick="addEntry()" style="width:55px; background:var(--gold); border:none; border-radius:12px; font-weight:900; height:48px;">OK</button>
+    </div>
+
+    <nav class="bottom-nav">
+        <button class="nav-item active" onclick="setTab('dash')">Vault</button>
+        <button class="nav-item" onclick="setTab('wealth')">Wealth</button>
+        <button class="nav-item" onclick="setTab('goals')">Goals</button>
+        <button class="nav-item" onclick="setTab('tx')">Logs</button>
+    </nav>
+</div>
+
+<div id="modal" class="modal"><div class="modal-inner" id="mBody"></div></div>
+
+<script>
+    let S = {
+        tab: 'dash',
+        tx: JSON.parse(localStorage.getItem('SENTINEL_PRO_TX') || '[]'),
+        assets: JSON.parse(localStorage.getItem('SENTINEL_PRO_ASSETS') || '[]'),
+        debts: JSON.parse(localStorage.getItem('SENTINEL_PRO_DEBTS') || '[]'),
+        goals: JSON.parse(localStorage.getItem('SENTINEL_PRO_GOALS') || '[]'),
+        streak: parseInt(localStorage.getItem('SENTINEL_PRO_STREAK') || '0'),
+        lastDate: localStorage.getItem('SENTINEL_PRO_DATE') || ''
+    };
+
+    const save = () => {
+        localStorage.setItem('SENTINEL_PRO_TX', JSON.stringify(S.tx));
+        localStorage.setItem('SENTINEL_PRO_ASSETS', JSON.stringify(S.assets));
+        localStorage.setItem('SENTINEL_PRO_DEBTS', JSON.stringify(S.debts));
+        localStorage.setItem('SENTINEL_PRO_GOALS', JSON.stringify(S.goals));
+        localStorage.setItem('SENTINEL_PRO_STREAK', S.streak);
+        localStorage.setItem('SENTINEL_PRO_DATE', S.lastDate);
+        render();
+    };
+
+    const fmt = (v) => v.toLocaleString('en-GB', { style: 'currency', currency: 'GBP' });
+
+    function getSTS() {
+        const dLeft = (new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() - new Date().getDate()) + 1;
+        const bal = S.tx.reduce((a,b) => a + b.amt, 0) / 100;
+        return bal > 0 ? (bal / dLeft) : 0;
+    }
+
+    function addEntry() {
+        const a = document.getElementById('qAmt').value, d = document.getElementById('qDesc').value;
+        if(!a || !d) return;
+        const today = new Date().toDateString();
+        if(S.lastDate !== today) { S.streak++; S.lastDate = today; }
+        S.tx.push({ id: Date.now(), amt: -Math.round(a*100), desc: d, date: new Date().toLocaleDateString() });
+        document.getElementById('qAmt').value = ''; document.getElementById('qDesc').value = '';
+        save();
+    }
+
+    function setTab(t) { S.tab = t; render(); }
+    
+    function showAdd(type) {
+        document.getElementById('modal').style.display = 'flex';
+        document.getElementById('mBody').innerHTML = `
+            <h2 style="color:var(--gold)">SECURE ${type.toUpperCase()}</h2>
+            <input type="text" id="mN" placeholder="Description">
+            <input type="number" id="mV" placeholder="Value (£)">
+            <button class="btn-gold" onclick="confirmAdd('${type}')">AUTHORISE</button>
+            <p onclick="document.getElementById('modal').style.display='none'" style="text-align:center; margin-top:20px; color:var(--danger); font-weight:bold; cursor:pointer;">ABORT</p>
+        `;
+    }
+
+    function confirmAdd(type) {
+        const n = document.getElementById('mN').value, v = Math.round(document.getElementById('mV').value * 100);
+        if(n && v) {
+            if(type === 'asset') S.assets.push({id: Date.now(), n, v});
+            if(type === 'debt') S.debts.push({id: Date.now(), n, v});
+            if(type === 'goal') S.goals.push({id: Date.now(), n, v});
+            document.getElementById('modal').style.display = 'none';
+            save();
+        }
+    }
+
+    function render() {
+        const app = document.getElementById('app'); app.innerHTML = '';
+        document.querySelectorAll('.nav-item').forEach((it, i) => it.classList.toggle('active', ['dash','wealth','goals','tx'][i] === S.tab));
+        
+        const liquid = S.tx.reduce((a,b)=>a+b.amt, 0) / 100;
+        const assets = S.assets.reduce((a,b)=>a+b.v, 0) / 100;
+        const debts = S.debts.reduce((a,b)=>a+b.v, 0) / 100;
+
+        if(S.tab === 'dash') {
+            app.innerHTML = `
+                <div class="logo-area"><div class="shield-icon"></div><div class="logo-text">SENTINEL WEALTH</div></div>
+                <div class="banner">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <small>VAULT LIQUIDITY</small>
+                        <span class="streak-pill">STREAK: ${S.streak}D</span>
+                    </div>
+                    <h1>${fmt(liquid)}</h1>
+                    <small style="color:var(--gold); font-weight:bold;">PRO NET WORTH: ${fmt(liquid + assets - debts)}</small>
+                </div>
+                <div class="sts-box"><small>SAFE TO SPEND TODAY</small><div class="sts-val">${fmt(getSTS())}</div></div>
+                <h3>VAULT INVENTORY</h3>
+                <div class="card">Total Fixed Assets: <b>${fmt(assets)}</b></div>
+                <div class="card">Total Liabilities: <b style="color:var(--danger)">${fmt(debts)}</b></div>
+            `;
+        }
+
+        if(S.tab === 'wealth') {
+            app.innerHTML = `<h2>WEALTH REGISTER</h2>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px;">
+                    <button class="btn-gold" onclick="showAdd('asset')">+ ASSET</button>
+                    <button class="btn-gold" style="background:var(--danger); color:white;" onclick="showAdd('debt')">+ DEBT</button>
+                </div>
+                <h3>ASSETS (${S.assets.length})</h3>
+                ${S.assets.map(a => `<div class="card" onclick="if(confirm('Purge?')){S.assets=S.assets.filter(x=>x.id!==${a.id});save();}"><span>${a.n}</span><b>${fmt(a.v/100)}</b></div>`).join('')}
+                <h3 style="margin-top:20px;">LIABILITIES (${S.debts.length})</h3>
+                ${S.debts.map(d => `<div class="card" style="border-left:4px solid var(--danger)" onclick="if(confirm('Purge?')){S.debts=S.debts.filter(x=>x.id!==${d.id});save();}"><span>${d.n}</span><b style="color:var(--danger)">${fmt(d.v/100)}</b></div>`).join('')}`;
+        }
+
+        if(S.tab === 'goals') {
+            app.innerHTML = `<h2>OBJECTIVES</h2><button class="btn-gold" onclick="showAdd('goal')">+ NEW TARGET</button>
+                <div style="margin-top:20px;">${S.goals.map(g => `<div class="card"><span>${g.n}</span><b>${fmt(g.v/100)}</b></div>`).join('')}</div>`;
+        }
+
+        if(S.tab === 'tx') {
+            app.innerHTML = '<h2>VAULT LOGS</h2>' + S.tx.map(t => `<div class="card" onclick="if(confirm('Purge log?')){S.tx=S.tx.filter(x=>x.id!==${t.id});save();}"><div><b>${t.desc}</b><br><small>${t.date}</small></div><b>${fmt(t.amt/100)}</b></div>`).join('');
+        }
+    }
+    render();
+</script>
+</body>
+</html>
